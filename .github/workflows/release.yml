@@ -16,6 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: brew install ninja
+      - uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: deps-macos-${{ hashFiles('CMakeLists.txt') }}
       - name: Build universal binary
         run: |
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DZEROONE_BUILD_TESTS=OFF
@@ -34,6 +38,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: deps-windows-${{ hashFiles('CMakeLists.txt') }}
       - name: Build
         run: |
           cmake -B build -DZEROONE_BUILD_TESTS=OFF
