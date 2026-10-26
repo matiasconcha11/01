@@ -27,9 +27,10 @@ Open the bounced file in any spectrogram with a **linear** frequency scale: [Aud
 (track menu → Spectrogram, then set the scale to Linear in Spectrogram Settings), [Spek](https://www.spek.cc),
 Sonic Visualiser or iZotope RX.
 
-Streaming services encode with lossy codecs that cut most of what's above ~16 kHz, so a message meant to survive
-Spotify or Apple Music should stay at or below 16 kHz (the *Hidden* preset). The *Faint* band only survives lossless
-files (WAV, FLAC, Bandcamp downloads).
+For a lossy export, start with the *Hidden* preset (11–16 kHz) and inspect the final file. Codec, bitrate,
+sample rate, mastering and each service's transcoding can change the result. In a local 256 kbps AAC test,
+both *Hidden* and *Faint* (16–19 kHz) remained visible, with *Faint* weaker. That test does not guarantee
+either band survives a streaming service's processing.
 
 ## Install
 

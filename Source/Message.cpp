@@ -30,11 +30,19 @@ Message Message::fromText (const juce::String& text)
     if (trimmed.isEmpty())
         return {};
 
-    // Cap height fills most of the rows; descenders still fit.
-    const auto font = juce::Font (juce::FontOptions ((float) rows * 1.15f, juce::Font::bold));
     const auto margin = rows / 3;
-    const auto textWidth = (int) std::ceil (juce::GlyphArrangement::getStringWidth (font, trimmed));
-    const auto width = juce::jlimit (1, maxColumns, textWidth + 2 * margin);
+    // Keep the complete line inside the stored image, including long messages.
+    auto font = juce::Font (juce::FontOptions ((float) rows * 1.15f, juce::Font::bold));
+    auto textWidth = juce::GlyphArrangement::getStringWidth (font, trimmed);
+    const auto availableWidth = (float) (maxColumns - 2 * margin);
+
+    if (textWidth > availableWidth)
+    {
+        font = font.withHeight (font.getHeight() * availableWidth / textWidth);
+        textWidth = juce::GlyphArrangement::getStringWidth (font, trimmed);
+    }
+
+    const auto width = juce::jlimit (1, maxColumns, (int) std::ceil (textWidth) + 2 * margin);
 
     juce::Image image (juce::Image::RGB, width, rows, true, juce::SoftwareImageType());
 

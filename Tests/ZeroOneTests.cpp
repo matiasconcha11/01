@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <juce_audio_formats/juce_audio_formats.h>
 #include "MessageSynth.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
@@ -73,6 +74,18 @@ TEST_CASE ("Text becomes a picture the height of the message")
     // Longer text takes more columns; empty text is no message.
     CHECK (Message::fromText ("0101 0101").columns > message.columns);
     CHECK (Message::fromText ("   ").isEmpty());
+
+    // The last character must still affect the image when the input reaches the UI limit.
+    const auto longPrefix = juce::String::repeatedString ("W", 63);
+    const auto endingX = Message::fromText (longPrefix + "X");
+    const auto endingO = Message::fromText (longPrefix + "O");
+    REQUIRE (endingX.columns <= 1024);
+    REQUIRE (endingX.columns == endingO.columns);
+    auto differentPixels = 0;
+    for (size_t i = 0; i < endingX.cells.size(); ++i)
+        if (std::abs (endingX.cells[i] - endingO.cells[i]) > 0.1f)
+            ++differentPixels;
+    CHECK (differentPixels > 10);
 }
 
 TEST_CASE ("Images keep their aspect ratio and their bright parts")
@@ -177,7 +190,7 @@ TEST_CASE ("Silent outside the message, and bounded inside it")
         peak = juce::jmax (peak, std::abs (synth.tick ((double) i / 48000.0)));
 
     CHECK (peak > 0.3f);
-    CHECK (peak < 6.0f);   // before Level, which is at most -12 dB
+    CHECK (peak * juce::Decibels::decibelsToGain (-12.0f) < 1.0f);
 
     // After the message: it fades out within a few milliseconds and stays silent.
     for (int i = 0; i < 2000; ++i)
@@ -329,5 +342,62 @@ TEST_CASE ("Editor snapshot", "[.snapshot]")
     juce::File (path).deleteFile();
     juce::FileOutputStream stream { juce::File (path) };
     REQUIRE (juce::PNGImageFormat().writeImageToStream (image, stream));
+    processor.setPlayHead (nullptr);
+}
+
+// Not part of the normal run: bounces 10 s of a pad with a message to a WAV, for reading back in a
+// spectrogram (or after a lossy encode).  ./build/ZeroOneTests "[.render]"
+TEST_CASE ("Render a bounce", "[.render]")
+{
+    ZeroOneProcessor processor;
+    processor.setMessageText (juce::SystemStats::getEnvironmentVariable ("ZEROONE_RENDER_TEXT", "Created"));
+
+    for (auto [id, variable] : { std::pair { Params::low, "ZEROONE_RENDER_LOW" }, std::pair { Params::high, "ZEROONE_RENDER_HIGH" } })
+        if (const auto value = juce::SystemStats::getEnvironmentVariable (variable, {}); value.isNotEmpty())
+            processor.apvts.getParameter (id)->setValueNotifyingHost (
+                processor.apvts.getParameter (id)->convertTo0to1 (value.getFloatValue()));
+
+    FakePlayHead head;
+    head.info.setBpm (120.0);
+    head.info.setIsPlaying (true);
+    processor.setPlayHead (&head);
+    processor.prepareToPlay (sampleRate, 512);
+
+    const auto numBlocks = (int) (10.0 * sampleRate / 512.0);
+    juce::AudioBuffer<float> bounce (2, numBlocks * 512);
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+    const float chord[] { 110.0f, 220.0f, 261.63f, 329.63f, 440.0f, 523.25f, 659.25f, 987.77f };
+
+    for (int block = 0; block < numBlocks; ++block)
+    {
+        for (int i = 0; i < 512; ++i)
+        {
+            const auto t = (double) (block * 512 + i) / sampleRate;
+            auto v = 0.0f;
+
+            for (size_t k = 0; k < std::size (chord); ++k)
+                v += (float) (std::sin (juce::MathConstants<double>::twoPi * chord[k] * t) * (0.12 / (1.0 + (double) k * 0.4)));
+
+            buffer.setSample (0, i, v);
+            buffer.setSample (1, i, v);
+        }
+
+        head.info.setPpqPosition ((double) block * 512.0 / 24000.0);
+        processor.processBlock (buffer, midi);
+
+        for (int channel = 0; channel < 2; ++channel)
+            bounce.copyFrom (channel, block * 512, buffer, channel, 0, 512);
+    }
+
+    const juce::File file (juce::SystemStats::getEnvironmentVariable ("ZEROONE_RENDER", "/tmp/zeroone.wav"));
+    file.deleteFile();
+    auto stream = file.createOutputStream();
+    REQUIRE (stream != nullptr);
+
+    juce::WavAudioFormat wav;
+    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.release(), sampleRate, 2, 24, {}, 0));
+    REQUIRE (writer != nullptr);
+    REQUIRE (writer->writeFromAudioSampleBuffer (bounce, 0, bounce.getNumSamples()));
     processor.setPlayHead (nullptr);
 }
