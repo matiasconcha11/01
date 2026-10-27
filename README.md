@@ -25,7 +25,14 @@ AU · VST3 · Standalone — macOS (Windows VST3 builds in CI) — by [Rhizr](ht
 
 Open the bounced file in any spectrogram with a **linear** frequency scale: [Audacity](https://www.audacityteam.org)
 (track menu → Spectrogram, then set the scale to Linear in Spectrogram Settings), [Spek](https://www.spek.cc),
-Sonic Visualiser or iZotope RX.
+Sonic Visualiser or iZotope RX. Zoom to the message band and adjust the display range; a quiet message can be
+hard to see when the whole 0–24 kHz spectrum shares one colour scale.
+
+Leave headroom before 01, especially on a limited mix. It adds tones to the incoming audio and does not limit
+the result. Place it before the final limiter or lower the input enough that the finished export stays below
+full scale. On a dense Something New excerpt, the title was hard to read over the default two bars. Spreading
+it over eight bars made both 11–16 kHz and 16–19 kHz readable in local 256 kbps AAC tests when the display
+was zoomed to the message band. Check the timing, band and level against your own track.
 
 For a lossy export, start with the *Hidden* preset (11–16 kHz) and inspect the final file. Codec, bitrate,
 sample rate, mastering and each service's transcoding can change the result. In a local 256 kbps AAC test,

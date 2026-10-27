@@ -345,14 +345,18 @@ TEST_CASE ("Editor snapshot", "[.snapshot]")
     processor.setPlayHead (nullptr);
 }
 
-// Not part of the normal run: bounces 10 s of a pad with a message to a WAV, for reading back in a
-// spectrogram (or after a lossy encode).  ./build/ZeroOneTests "[.render]"
+// Not part of the normal run: bounces a pad or an external WAV through the processor.
+// ZEROONE_RENDER_INPUT=/path/to/stereo-48k.wav ./build/ZeroOneTests "[.render]"
 TEST_CASE ("Render a bounce", "[.render]")
 {
     ZeroOneProcessor processor;
     processor.setMessageText (juce::SystemStats::getEnvironmentVariable ("ZEROONE_RENDER_TEXT", "Created"));
 
-    for (auto [id, variable] : { std::pair { Params::low, "ZEROONE_RENDER_LOW" }, std::pair { Params::high, "ZEROONE_RENDER_HIGH" } })
+    for (auto [id, variable] : { std::pair { Params::low, "ZEROONE_RENDER_LOW" },
+                                std::pair { Params::high, "ZEROONE_RENDER_HIGH" },
+                                std::pair { Params::level, "ZEROONE_RENDER_LEVEL" },
+                                std::pair { Params::length, "ZEROONE_RENDER_LENGTH" },
+                                std::pair { Params::repeat, "ZEROONE_RENDER_REPEAT" } })
         if (const auto value = juce::SystemStats::getEnvironmentVariable (variable, {}); value.isNotEmpty())
             processor.apvts.getParameter (id)->setValueNotifyingHost (
                 processor.apvts.getParameter (id)->convertTo0to1 (value.getFloatValue()));
@@ -363,7 +367,19 @@ TEST_CASE ("Render a bounce", "[.render]")
     processor.setPlayHead (&head);
     processor.prepareToPlay (sampleRate, 512);
 
-    const auto numBlocks = (int) (10.0 * sampleRate / 512.0);
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> input;
+    if (const auto path = juce::SystemStats::getEnvironmentVariable ("ZEROONE_RENDER_INPUT", {}); path.isNotEmpty())
+    {
+        input.reset (formats.createReaderFor (juce::File (path)));
+        REQUIRE (input != nullptr);
+        REQUIRE_THAT (input->sampleRate, WithinAbs (sampleRate, 0.01));
+        REQUIRE (input->numChannels == 2);
+    }
+
+    const auto seconds = juce::jlimit (1, 300, juce::SystemStats::getEnvironmentVariable ("ZEROONE_RENDER_SECONDS", "10").getIntValue());
+    const auto numBlocks = (int) (seconds * sampleRate / 512.0);
     juce::AudioBuffer<float> bounce (2, numBlocks * 512);
     juce::AudioBuffer<float> buffer (2, 512);
     juce::MidiBuffer midi;
@@ -371,7 +387,11 @@ TEST_CASE ("Render a bounce", "[.render]")
 
     for (int block = 0; block < numBlocks; ++block)
     {
-        for (int i = 0; i < 512; ++i)
+        if (input != nullptr)
+        {
+            REQUIRE (input->read (&buffer, 0, 512, (juce::int64) block * 512, true, true));
+        }
+        else for (int i = 0; i < 512; ++i)
         {
             const auto t = (double) (block * 512 + i) / sampleRate;
             auto v = 0.0f;
@@ -392,11 +412,16 @@ TEST_CASE ("Render a bounce", "[.render]")
 
     const juce::File file (juce::SystemStats::getEnvironmentVariable ("ZEROONE_RENDER", "/tmp/zeroone.wav"));
     file.deleteFile();
-    auto stream = file.createOutputStream();
+    std::unique_ptr<juce::OutputStream> stream = file.createOutputStream();
     REQUIRE (stream != nullptr);
 
     juce::WavAudioFormat wav;
-    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.release(), sampleRate, 2, 24, {}, 0));
+    const auto options = juce::AudioFormatWriterOptions()
+                             .withSampleRate (sampleRate)
+                             .withNumChannels (2)
+                             .withBitsPerSample (32)
+                             .withSampleFormat (juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+    auto writer = wav.createWriterFor (stream, options);
     REQUIRE (writer != nullptr);
     REQUIRE (writer->writeFromAudioSampleBuffer (bounce, 0, bounce.getNumSamples()));
     processor.setPlayHead (nullptr);

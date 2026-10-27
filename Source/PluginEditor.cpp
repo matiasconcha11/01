@@ -12,10 +12,10 @@ namespace
         float low, high, level;
     };
 
-    // Lossy streaming (AAC/Ogg) cuts most of what's above ~16 kHz, so only the first band survives everywhere.
+    // Delivery codecs vary; the final export must be checked in a spectrogram.
     const BandPreset bands[] {
         { "Hidden - 11 to 16 kHz", 11000.0f, 16000.0f, -30.0f },
-        { "Faint - 16 to 19 kHz (lossless only)", 16000.0f, 19000.0f, -36.0f },
+        { "Faint - 16 to 19 kHz", 16000.0f, 19000.0f, -36.0f },
         { "Visible - 2 to 12 kHz", 2000.0f, 12000.0f, -24.0f },
         { "Low - 300 Hz to 4 kHz", 300.0f, 4000.0f, -24.0f },
     };
