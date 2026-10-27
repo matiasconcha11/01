@@ -5,17 +5,25 @@
 
 class ZeroOneProcessor;
 
-// A scrolling spectrogram of the plugin's output: the place where the message shows up.
-// Frequencies run linearly from 0 Hz at the bottom to half the sample rate at the top,
-// the way most spectrogram views draw them, so letters look the same here as anywhere else.
+// Linear-frequency spectrogram of the processed mix or just the added message.
 class Spectrogram : public juce::Component, private juce::Timer
 {
 public:
     explicit Spectrogram (ZeroOneProcessor&);
 
     void setBand (float lowHz, float highHz);
+    void setFullSpectrum (bool full);
+    void setMessageOnly (bool messageOnly);
+    float getViewLow() const;
+    float getViewHigh() const;
+    std::function<void(bool, float)> onBandEdgeDrag;
+    std::function<void(bool)> onBandEdgeBegin, onBandEdgeEnd;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
 
-    // Draws whatever audio has arrived since the last call (the timer calls this 60 times a second).
+    // Draws whatever audio has arrived since the last call.
     void update();
 
     void paint (juce::Graphics&) override;
@@ -30,7 +38,7 @@ private:
 
     static constexpr int fftOrder = 11;
     static constexpr int fftSize = 1 << fftOrder;
-    static constexpr int hopSize = 512;
+    static constexpr int hopSize = 1024;
 
     ZeroOneProcessor& processor;
     juce::dsp::FFT fft { fftOrder };
@@ -42,4 +50,7 @@ private:
 
     juce::Image image;
     float bandLow = 0.0f, bandHigh = 0.0f;
+    bool fullSpectrum = false, messageOnly = false;
+    int draggingEdge = 0; // -1 low, +1 high
+    float dragViewLow = 0.0f, dragViewHigh = 0.0f;
 };

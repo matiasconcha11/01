@@ -54,6 +54,8 @@ private:
     juce::TextButton imageButton { "Image..." };
     juce::Label sourceLabel;
     juce::ComboBox bandPresets;
+    juce::TextButton viewButton { "Message" }, zoomButton { "Full view" }, captureButton { "Capture" };
+    juce::Label timingInfo, peakInfo, scaleInfo;
     std::unique_ptr<juce::FileChooser> chooser;
 
     MessagePreview preview;
@@ -74,6 +76,8 @@ private:
     juce::Rectangle<int> controlsArea;
     std::vector<std::pair<juce::Rectangle<int>, juce::String>> captions;
     std::shared_ptr<const Message> shownMessage;
+    bool captureMode = false;
+    float peakHold = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ZeroOneEditor)
 };

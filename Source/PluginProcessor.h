@@ -45,7 +45,7 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
-    const juce::String getName() const override { return "01"; }
+    const juce::String getName() const override { return "Inscript"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -76,12 +76,13 @@ public:
     static constexpr int scopeSize = 1 << 15;
     juce::AbstractFifo scopeFifo { scopeSize };
     std::vector<float> scopeBuffer = std::vector<float> (scopeSize);
+    std::vector<float> messageScopeBuffer = std::vector<float> (scopeSize);
+    std::atomic<float> outputPeakSinceRead { 0.0f };
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void publish (std::shared_ptr<const Message>);
     Schedule currentSchedule (const juce::AudioPlayHead::PositionInfo*) const;
-    void pushToScope (const juce::AudioBuffer<float>&, int numChannels);
 
     std::atomic<float>* levelParam = nullptr;
     std::atomic<float>* lowParam = nullptr;

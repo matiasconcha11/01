@@ -5,14 +5,107 @@
 Spectrogram::Spectrogram (ZeroOneProcessor& p) : processor (p)
 {
     setOpaque (true);
-    startTimerHz (60);
+    startTimerHz (30);
 }
 
 void Spectrogram::setBand (float lowHz, float highHz)
 {
+    if (juce::exactlyEqual (bandLow, lowHz) && juce::exactlyEqual (bandHigh, highHz))
+        return;
     bandLow = lowHz;
     bandHigh = highHz;
+    if (! fullSpectrum && draggingEdge == 0)
+    {
+        image = {};
+        resized();
+    }
     repaint();
+}
+
+void Spectrogram::setFullSpectrum (bool full)
+{
+    if (fullSpectrum == full) return;
+    fullSpectrum = full;
+    image = {};
+    resized();
+    repaint();
+}
+
+void Spectrogram::setMessageOnly (bool only)
+{
+    if (messageOnly == only) return;
+    messageOnly = only;
+    std::fill (history.begin(), history.end(), 0.0f);
+    image = {};
+    resized();
+    repaint();
+}
+
+void Spectrogram::mouseMove (const juce::MouseEvent& event)
+{
+    const auto span = juce::jmax (1.0f, getViewHigh() - getViewLow());
+    const auto yFor = [this, span] (float hz) { return (getViewHigh() - hz) / span * (float) getHeight(); };
+    const auto near = std::abs ((float) event.y - yFor (bandLow)) < 10.0f
+                   || std::abs ((float) event.y - yFor (bandHigh)) < 10.0f;
+    setMouseCursor (near ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor);
+}
+
+void Spectrogram::mouseDown (const juce::MouseEvent& event)
+{
+    const auto span = juce::jmax (1.0f, getViewHigh() - getViewLow());
+    const auto yFor = [this, span] (float hz) { return (getViewHigh() - hz) / span * (float) getHeight(); };
+    const auto lowDistance = std::abs ((float) event.y - yFor (bandLow));
+    const auto highDistance = std::abs ((float) event.y - yFor (bandHigh));
+    const auto viewLow = getViewLow(), viewHigh = getViewHigh();
+    draggingEdge = juce::jmin (lowDistance, highDistance) <= 12.0f
+        ? (lowDistance < highDistance ? -1 : 1) : 0;
+    if (draggingEdge != 0 && onBandEdgeBegin)
+    {
+        dragViewLow = viewLow;
+        dragViewHigh = viewHigh;
+        onBandEdgeBegin (draggingEdge < 0);
+    }
+}
+
+void Spectrogram::mouseDrag (const juce::MouseEvent& event)
+{
+    if (draggingEdge == 0 || ! onBandEdgeDrag) return;
+    const auto hz = getViewHigh() - (float) event.y / (float) juce::jmax (1, getHeight())
+                                 * (getViewHigh() - getViewLow());
+    const auto low = draggingEdge < 0;
+    onBandEdgeDrag (low, juce::jlimit (200.0f, 20000.0f,
+        low ? juce::jmin (hz, bandHigh - 200.0f) : juce::jmax (hz, bandLow + 200.0f)));
+}
+
+void Spectrogram::mouseUp (const juce::MouseEvent&)
+{
+    const auto wasDragging = draggingEdge != 0;
+    if (draggingEdge != 0 && onBandEdgeEnd)
+        onBandEdgeEnd (draggingEdge < 0);
+    draggingEdge = 0;
+    if (wasDragging && ! fullSpectrum)
+    {
+        image = {};
+        resized();
+        repaint();
+    }
+}
+
+float Spectrogram::getViewLow() const
+{
+    if (draggingEdge != 0) return dragViewLow;
+    if (fullSpectrum) return 0.0f;
+    const auto padding = juce::jmax (500.0f, (bandHigh - bandLow) * 0.12f);
+    return juce::jmax (0.0f, bandLow - padding);
+}
+
+float Spectrogram::getViewHigh() const
+{
+    if (draggingEdge != 0) return dragViewHigh;
+    const auto nyquist = (float) processor.sampleRateForDisplay.load() * 0.5f;
+    if (fullSpectrum) return nyquist;
+    const auto padding = juce::jmax (500.0f, (bandHigh - bandLow) * 0.12f);
+    return juce::jmin (nyquist, bandHigh + padding);
 }
 
 juce::Colour Spectrogram::colourFor (float level)
@@ -62,7 +155,8 @@ void Spectrogram::update()
         {
             // Shift the history left and append; fftSize is small enough for this to be cheap.
             std::move (history.begin() + size, history.end(), history.begin());
-            std::copy_n (processor.scopeBuffer.begin() + start, size, history.end() - size);
+            const auto& source = messageOnly ? processor.messageScopeBuffer : processor.scopeBuffer;
+            std::copy_n (source.begin() + start, size, history.end() - size);
         };
 
         copy (read.startIndex1, read.blockSize1);
@@ -96,16 +190,18 @@ void Spectrogram::drawColumn()
     image.moveImageSection (0, 0, 1, 0, width - 1, height);
 
     const auto bins = fftSize / 2;
+    const auto lowHz = getViewLow(), highHz = getViewHigh();
+    const auto binPerHz = (float) fftSize / (float) processor.sampleRateForDisplay.load();
     const auto normalise = 2.0f / (float) fftSize;
     constexpr auto floorDb = -110.0f;
 
     for (int y = 0; y < height; ++y)
     {
-        // Top row = Nyquist, bottom row = 0 Hz.
-        const auto bin = juce::jlimit (0, bins - 1, (int) ((1.0f - (float) y / (float) height) * (float) bins));
+        const auto hz = juce::jmap ((float) y / (float) height, highHz, lowHz);
+        const auto bin = juce::jlimit (0, bins - 1, juce::roundToInt (hz * binPerHz));
         const auto db = juce::Decibels::gainToDecibels (fftData[(size_t) bin] * normalise, floorDb);
-        // Quiet stuff stays near the night background; the curve lifts only what's clearly there.
-        const auto level = juce::jlimit (0.0f, 1.0f, juce::jmap (db, -100.0f, -40.0f, 0.0f, 1.0f));
+        const auto level = juce::jlimit (0.0f, 1.0f, juce::jmap (db,
+            messageOnly ? -105.0f : -100.0f, messageOnly ? -48.0f : -40.0f, 0.0f, 1.0f));
         image.setPixelAt (width - 1, y, colourFor (std::pow (level, 1.4f)));
     }
 }
@@ -114,9 +210,9 @@ void Spectrogram::paint (juce::Graphics& g)
 {
     g.drawImageAt (image, 0, 0);
 
-    // The band the message is written in.
-    const auto nyquist = (float) processor.sampleRateForDisplay.load() * 0.5f;
-    const auto yFor = [&] (float hz) { return (1.0f - hz / nyquist) * (float) getHeight(); };
+    const auto lowHz = getViewLow(), highHz = getViewHigh();
+    const auto span = juce::jmax (1.0f, highHz - lowHz);
+    const auto yFor = [&] (float hz) { return (highHz - hz) / span * (float) getHeight(); };
     const auto top = yFor (juce::jmax (bandLow, bandHigh));
     const auto bottom = yFor (juce::jmin (bandLow, bandHigh));
 
@@ -124,16 +220,30 @@ void Spectrogram::paint (juce::Graphics& g)
     const float dashes[] { 4.0f, 4.0f };
 
     for (auto y : { top, bottom })
-        g.drawDashedLine ({ 0.0f, y, (float) getWidth(), y }, dashes, 2, 1.0f);
+        if (y >= 0.0f && y <= (float) getHeight())
+            g.drawDashedLine ({ 0.0f, y, (float) getWidth(), y }, dashes, 2, 1.0f);
+
+    if (getWidth() > 240)
+    {
+        g.setFont (Theme::caps (10.0f));
+        g.setColour (Theme::honey.withAlpha (0.8f));
+        if (top > 12.0f && top < (float) getHeight() - 8.0f)
+            g.drawText ("HIGH  drag", getWidth() - 92, (int) top - 15, 86, 14, juce::Justification::centredRight);
+        if (bottom > 12.0f && bottom < (float) getHeight() - 8.0f)
+            g.drawText ("LOW  drag", getWidth() - 92, (int) bottom + 2, 86, 14, juce::Justification::centredRight);
+    }
 
     g.setFont (Theme::font (11.0f));
     g.setColour (Theme::dim);
 
-    for (auto khz : { 5, 10, 15, 20 })
+    for (int tick = 0; tick <= 4; ++tick)
     {
-        const auto y = yFor ((float) khz * 1000.0f);
-
-        if (y > 8.0f)
-            g.drawText (juce::String (khz) + "k", 6, (int) y - 7, 40, 14, juce::Justification::centredLeft);
+        const auto hz = lowHz + span * (float) tick / 4.0f;
+        const auto y = yFor (hz);
+        const auto label = hz >= 1000.0f ? juce::String (hz / 1000.0f, 1) + "k" : juce::String (juce::roundToInt (hz));
+        g.setColour (Theme::text.withAlpha (0.7f));
+        g.drawText (label, 8, juce::jlimit (2, juce::jmax (2, getHeight() - 18), (int) y - 9), 52, 18,
+                    juce::Justification::centredLeft);
     }
+
 }

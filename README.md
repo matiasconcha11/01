@@ -1,12 +1,14 @@
-# 01
+# Inscript
 
-**Hidden messages in the spectrum.** Type a word (or drop in an image) and 01 writes it into your track as a quiet
+**Hidden messages in the spectrum.** Type a word (or drop in an image) and Inscript writes it into your track as a quiet
 band of tones. You'll barely hear it, but open the song in a spectrogram and the message is there, written in
-light. 01 shows its own live spectrogram, so you can watch the letters appear as the song plays.
+light. Inscript shows its own live spectrogram, so you can watch the letters appear as the song plays.
 
 AU · VST3 · Standalone — macOS (Windows VST3 builds in CI) — by [Rhizr](https://rhizr.dev/music), built with [JUCE](https://juce.com)
 
-![01](docs/screenshot.png)
+![Inscript](docs/screenshot.png)
+
+[Capture layout](docs/capture.png)
 
 ## Features
 
@@ -17,9 +19,16 @@ AU · VST3 · Standalone — macOS (Windows VST3 builds in CI) — by [Rhizr](ht
 - **In time with the song**: pick the start bar and how many bars the message lasts (1–16), and whether it repeats
   after a gap. With **Play: Transport** it follows the song position, so every bounce comes out the same;
   **Free** loops all the time, even when stopped, for trying things out
-- **Live spectrogram** of the output in the night palette, with the message band marked, plus a preview strip
-  with a playhead
+- **Live spectrogram** zoomed to the message band by default, with full-range and mix/message views. The message
+  view shows only the added tones; the mix view shows a mono fold of the processed output. Drag the band edges on the display or
+  type precise frequencies into the Low and High fields
+- **Timing preview** shows the message, playhead, length and space per character; Capture mode enlarges the visual
+  for recording a reel
+- **Output sample peak** warns if the processed signal exceeds 0 dBFS; Inscript does not limit or attenuate the mix
 - **Solo** to hear only the message; click-free bypass; the message (text or image) is saved with your session
+
+The DAW listing is **Rhizr → Inscript**. The bundle filenames (`01.component` and `01.vst3`), plugin IDs and
+parameter IDs remain the same so projects made with 01 can find the plugin after updating.
 
 ## Reading the message back
 
@@ -28,7 +37,7 @@ Open the bounced file in any spectrogram with a **linear** frequency scale: [Aud
 Sonic Visualiser or iZotope RX. Zoom to the message band and adjust the display range; a quiet message can be
 hard to see when the whole 0–24 kHz spectrum shares one colour scale.
 
-Leave headroom before 01, especially on a limited mix. It adds tones to the incoming audio and does not limit
+Leave headroom before Inscript, especially on a limited mix. It adds tones to the incoming audio and does not limit
 the result. Place it before the final limiter or lower the input enough that the finished export stays below
 full scale. On a dense Something New excerpt, the title was hard to read over the default two bars. Spreading
 it over eight bars made both 11–16 kHz and 16–19 kHz readable in local 256 kbps AAC tests when the display
@@ -53,7 +62,7 @@ The builds aren't notarized by Apple yet, so macOS blocks them at first. Clear t
 ```
 xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/01.component ~/Library/Audio/Plug-Ins/VST3/01.vst3
 ```
-Then restart your DAW and look for **Rhizr → 01**.
+Then restart your DAW and look for **Rhizr → Inscript**.
 
 **Windows**: unzip and move `01.vst3` into `C:\Program Files\Common Files\VST3\`. (The Windows build is
 compiled and unit-tested automatically but hasn't been tried in a DAW yet.)

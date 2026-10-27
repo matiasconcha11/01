@@ -152,6 +152,10 @@ void ZeroOneProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     wet.setTargetValue (bypassParam->load() > 0.5f ? 0.0f : 1.0f);
 
     auto lastPosition = -1.0;
+    int scopeStart1 = 0, scopeSize1 = 0, scopeStart2 = 0, scopeSize2 = 0;
+    const auto scopeCount = numChannels > 0 ? juce::jmin (numSamples, scopeFifo.getFreeSpace()) : 0;
+    scopeFifo.prepareToWrite (scopeCount, scopeStart1, scopeSize1, scopeStart2, scopeSize2);
+    auto blockPeak = 0.0f;
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -171,6 +175,17 @@ void ZeroOneProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         {
             auto* samples = buffer.getWritePointer (channel);
             samples[i] = samples[i] * dry + message;
+            blockPeak = juce::jmax (blockPeak, std::abs (samples[i]));
+        }
+
+        if (i < scopeSize1 + scopeSize2)
+        {
+            auto sum = 0.0f;
+            for (int channel = 0; channel < numChannels; ++channel)
+                sum += buffer.getReadPointer (channel)[i];
+            const auto index = i < scopeSize1 ? scopeStart1 + i : scopeStart2 + i - scopeSize1;
+            scopeBuffer[(size_t) index] = sum / (float) numChannels;
+            messageScopeBuffer[(size_t) index] = message;
         }
 
         lastPosition = messagePosition;
@@ -180,34 +195,10 @@ void ZeroOneProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         freePpq += numSamples * ppqPerSample;
 
     displayPosition = (float) lastPosition;
-    pushToScope (buffer, numChannels);
-}
-
-void ZeroOneProcessor::pushToScope (const juce::AudioBuffer<float>& buffer, int numChannels)
-{
-    if (numChannels == 0)
-        return;
-
-    const auto numSamples = buffer.getNumSamples();
-    const auto scale = 1.0f / (float) numChannels;
-    const auto scope = scopeFifo.write (juce::jmin (numSamples, scopeFifo.getFreeSpace()));
-    int read = 0;
-
-    auto copy = [&] (int start, int size)
-    {
-        for (int i = 0; i < size; ++i, ++read)
-        {
-            auto sum = 0.0f;
-
-            for (int channel = 0; channel < numChannels; ++channel)
-                sum += buffer.getReadPointer (channel)[read];
-
-            scopeBuffer[(size_t) (start + i)] = sum * scale;
-        }
-    };
-
-    copy (scope.startIndex1, scope.blockSize1);
-    copy (scope.startIndex2, scope.blockSize2);
+    scopeFifo.finishedWrite (scopeSize1 + scopeSize2);
+    auto previous = outputPeakSinceRead.load (std::memory_order_relaxed);
+    while (previous < blockPeak && ! outputPeakSinceRead.compare_exchange_weak (previous, blockPeak,
+                                                                                std::memory_order_relaxed)) {}
 }
 
 void ZeroOneProcessor::publish (std::shared_ptr<const Message> message)

@@ -3,8 +3,8 @@
 namespace
 {
     constexpr int margin = 16;
-    constexpr int headerHeight = 60;
-    constexpr int controlsHeight = 118;
+    constexpr int headerHeight = 66;
+    constexpr int controlsHeight = 138;
 
     struct BandPreset
     {
@@ -26,6 +26,13 @@ namespace
         parameter->beginChangeGesture();
         parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
         parameter->endChangeGesture();
+    }
+
+    juce::RangedAudioParameter* parameterForEdge (ZeroOneProcessor& p, bool lowEdge)
+    {
+        const auto rawLow = p.apvts.getRawParameterValue (Params::low)->load();
+        const auto rawHigh = p.apvts.getRawParameterValue (Params::high)->load();
+        return p.apvts.getParameter (lowEdge == (rawLow <= rawHigh) ? Params::low : Params::high);
     }
 }
 
@@ -148,6 +155,61 @@ ZeroOneEditor::ZeroOneEditor (ZeroOneProcessor& p)
 
     addAndMakeVisible (preview);
     addAndMakeVisible (spectrogram);
+    spectrogram.onBandEdgeBegin = [this] (bool lowEdge)
+    {
+        parameterForEdge (processor, lowEdge)->beginChangeGesture();
+    };
+    spectrogram.onBandEdgeDrag = [this] (bool lowEdge, float hz)
+    {
+        auto* parameter = parameterForEdge (processor, lowEdge);
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (hz));
+    };
+    spectrogram.onBandEdgeEnd = [this] (bool lowEdge)
+    {
+        parameterForEdge (processor, lowEdge)->endChangeGesture();
+    };
+
+    viewButton.onClick = [this]
+    {
+        const auto messageOnly = viewButton.getButtonText() != "Mix (mono)";
+        spectrogram.setMessageOnly (messageOnly);
+        viewButton.setButtonText (messageOnly ? "Mix (mono)" : "Message");
+        scaleInfo.setText (messageOnly ? "MESSAGE  /  -105 TO -48 dBFS" : "MIX (MONO)  /  -100 TO -40 dBFS",
+                           juce::dontSendNotification);
+    };
+    viewButton.setTooltip ("Switch between the actual processed mix and only the message added by Inscript.");
+    zoomButton.onClick = [this]
+    {
+        const auto full = zoomButton.getButtonText() == "Full view";
+        spectrogram.setFullSpectrum (full);
+        zoomButton.setButtonText (full ? "Band view" : "Full view");
+    };
+    zoomButton.setTooltip ("Switch between the message band and the full frequency range.");
+    captureButton.onClick = [this]
+    {
+        captureMode = ! captureMode;
+        captureButton.setButtonText (captureMode ? "Edit" : "Capture");
+        for (auto* component : std::array<juce::Component*, 14> { &messageBox, &imageButton, &sourceLabel,
+                                 &bandPresets, &level, &low, &high, &startBar, &gap, &repeatButton,
+                                 &soloButton, &bypassButton, &lengthSelector, &playSelector })
+            component->setVisible (! captureMode);
+        showSource();
+        resized();
+        repaint();
+    };
+    captureButton.setTooltip ("Show a larger spectrum and message preview for a screen recording.");
+    for (auto* button : { &viewButton, &zoomButton, &captureButton })
+        addAndMakeVisible (button);
+
+    for (auto* label : { &timingInfo, &peakInfo, &scaleInfo })
+    {
+        label->setFont (Theme::font (13.0f));
+        label->setColour (juce::Label::textColourId, Theme::dim);
+        addAndMakeVisible (label);
+    }
+    scaleInfo.setFont (Theme::caps (10.0f));
+    scaleInfo.setJustificationType (juce::Justification::centredRight);
+    scaleInfo.setText ("MIX (MONO)  /  -100 TO -40 dBFS", juce::dontSendNotification);
 
     for (auto* knob : { &level, &low, &high })
     {
@@ -194,9 +256,10 @@ ZeroOneEditor::ZeroOneEditor (ZeroOneProcessor& p)
     shownMessage = processor.getMessage();
 
     setResizable (true, true);
-    setResizeLimits (760, 520, 1600, 1100);
-    setSize (900, 600);
+    setResizeLimits (800, 560, 1600, 1100);
+    setSize (980, 660);
     startTimerHz (30);
+    timerCallback();
 }
 
 ZeroOneEditor::~ZeroOneEditor()
@@ -208,7 +271,7 @@ void ZeroOneEditor::showSource()
 {
     const auto name = processor.getImageName();
     sourceLabel.setText ("Image: " + name, juce::dontSendNotification);
-    sourceLabel.setVisible (name.isNotEmpty());
+    sourceLabel.setVisible (name.isNotEmpty() && ! captureMode);
     messageBox.setAlpha (name.isNotEmpty() ? 0.45f : 1.0f);
 }
 
@@ -267,8 +330,28 @@ void ZeroOneEditor::timerCallback()
 
     showSource();
     preview.setPosition (processor.displayPosition.load());
-    spectrogram.setBand (processor.apvts.getRawParameterValue (Params::low)->load(),
-                         processor.apvts.getRawParameterValue (Params::high)->load());
+    const auto rawLow = processor.apvts.getRawParameterValue (Params::low)->load();
+    const auto rawHigh = processor.apvts.getRawParameterValue (Params::high)->load();
+    spectrogram.setBand (juce::jmin (rawLow, rawHigh), juce::jmax (rawLow, rawHigh));
+
+    const auto lengthIndex = juce::roundToInt (processor.apvts.getRawParameterValue (Params::length)->load());
+    const auto bars = Params::lengthBars (lengthIndex);
+    const auto columns = message ? message->columns : 0;
+    const auto chars = processor.getMessageText().length();
+    const auto source = processor.getImageName().isNotEmpty() ? "Image" : juce::String (chars) + " characters";
+    const auto space = processor.getImageName().isNotEmpty() ? juce::String (columns) + " slices"
+        : juce::String ((float) bars / (float) juce::jmax (1, chars), 2) + " bar / character";
+    const auto compressed = processor.getImageName().isEmpty() && chars >= 6 && (float) bars / (float) chars < 0.5f;
+    timingInfo.setText (source + "  ·  " + juce::String (bars) + (bars == 1 ? " bar" : " bars")
+                        + "  ·  " + space + (compressed ? "  ·  try 8 bars" : ""), juce::dontSendNotification);
+    timingInfo.setColour (juce::Label::textColourId, compressed ? Theme::honey : Theme::dim);
+
+    const auto peak = processor.outputPeakSinceRead.exchange (0.0f);
+    peakHold = juce::jmax (peak, peakHold * 0.95f);
+    const auto db = juce::Decibels::gainToDecibels (peakHold, -120.0f);
+    peakInfo.setText (peakHold > 1.0f ? "OUTPUT OVER 0 dBFS" : "OUTPUT PEAK  " + juce::String (db, 1) + " dBFS",
+                      juce::dontSendNotification);
+    peakInfo.setColour (juce::Label::textColourId, peakHold > 1.0f ? Theme::amber : Theme::dim);
 }
 
 void ZeroOneEditor::paint (juce::Graphics& g)
@@ -278,21 +361,22 @@ void ZeroOneEditor::paint (juce::Graphics& g)
     auto header = getLocalBounds().reduced (margin, 0).removeFromTop (headerHeight);
     g.setColour (Theme::honey);
     g.setFont (Theme::serif (38.0f));
-    g.drawText ("01", header.removeFromLeft (52), juce::Justification::centredLeft);
+    g.drawText ("Inscript", header.removeFromLeft (188), juce::Justification::centredLeft);
 
     g.setColour (Theme::dim);
     g.setFont (Theme::font (13.0f));
-    g.drawText ("hidden messages in the spectrum", header.removeFromLeft (260).withTrimmedTop (8),
+    g.drawText ("write into the spectrum", header.removeFromLeft (220).withTrimmedTop (8),
                 juce::Justification::centredLeft);
 
-    g.setFont (Theme::caps (9.5f));
+    g.setFont (Theme::caps (11.0f));
     g.setColour (Theme::dim);
 
     for (const auto& [area, text] : captions)
         g.drawText (text, area, juce::Justification::centredLeft);
 
     g.setColour (Theme::outline);
-    g.drawHorizontalLine (controlsArea.getY() - 8, (float) margin, (float) (getWidth() - margin));
+    if (! captureMode)
+        g.drawHorizontalLine (controlsArea.getY() - 8, (float) margin, (float) (getWidth() - margin));
 }
 
 void ZeroOneEditor::resized()
@@ -301,9 +385,29 @@ void ZeroOneEditor::resized()
     auto bounds = getLocalBounds().reduced (margin, 0);
 
     auto header = bounds.removeFromTop (headerHeight);
-    bypassButton.setBounds (header.removeFromRight (80).withSizeKeepingCentre (80, 28));
+    captureButton.setBounds (header.removeFromRight (86).withSizeKeepingCentre (86, 30));
     header.removeFromRight (8);
-    bandPresets.setBounds (header.removeFromRight (250).withSizeKeepingCentre (250, 28));
+    bypassButton.setBounds (header.removeFromRight (80).withSizeKeepingCentre (80, 30));
+    header.removeFromRight (8);
+    bandPresets.setBounds (header.removeFromRight (210).withSizeKeepingCentre (210, 30));
+
+    if (captureMode)
+    {
+        bounds.removeFromTop (4);
+        timingInfo.setBounds (bounds.removeFromTop (24));
+        bounds.removeFromTop (8);
+        preview.setBounds (bounds.removeFromTop (108));
+        bounds.removeFromTop (12);
+        auto toolbar = bounds.removeFromTop (34);
+        zoomButton.setBounds (toolbar.removeFromRight (108));
+        toolbar.removeFromRight (8);
+        viewButton.setBounds (toolbar.removeFromRight (100));
+        peakInfo.setBounds (toolbar.removeFromLeft (220));
+        scaleInfo.setBounds (toolbar);
+        bounds.removeFromTop (6);
+        spectrogram.setBounds (bounds.withTrimmedBottom (margin));
+        return;
+    }
 
     auto messageRow = bounds.removeFromTop (38);
     imageButton.setBounds (messageRow.removeFromRight (96));
@@ -311,12 +415,21 @@ void ZeroOneEditor::resized()
     messageBox.setBounds (messageRow);
     sourceLabel.setBounds (messageRow.reduced (10, 0).removeFromRight (260));
 
-    bounds.removeFromTop (10);
-    preview.setBounds (bounds.removeFromTop (64));
     bounds.removeFromTop (8);
+    timingInfo.setBounds (bounds.removeFromTop (24));
+    preview.setBounds (bounds.removeFromTop (70));
+    bounds.removeFromTop (10);
+
+    auto toolbar = bounds.removeFromTop (34);
+    zoomButton.setBounds (toolbar.removeFromRight (108));
+    toolbar.removeFromRight (8);
+    viewButton.setBounds (toolbar.removeFromRight (100));
+    peakInfo.setBounds (toolbar.removeFromLeft (220));
+    scaleInfo.setBounds (toolbar);
+    bounds.removeFromTop (6);
 
     controlsArea = bounds.removeFromBottom (controlsHeight).withTrimmedBottom (12);
-    bounds.removeFromBottom (16);
+    bounds.removeFromBottom (12);
     spectrogram.setBounds (bounds);
 
     auto controls = controlsArea;
@@ -335,7 +448,7 @@ void ZeroOneEditor::resized()
     }
 
     controls.removeFromLeft (14);
-    auto timing = controls.removeFromLeft (juce::jmin (330, controls.getWidth() / 2));
+    auto timing = controls.removeFromLeft (juce::jmin (330, controls.getWidth() - 150));
     auto top = timing.removeFromTop (timing.getHeight() / 2);
     addCaption (top, "LENGTH (BARS)");
     lengthSelector.setBounds (top.removeFromTop (28));

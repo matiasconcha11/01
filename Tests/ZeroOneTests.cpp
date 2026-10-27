@@ -295,6 +295,9 @@ TEST_CASE ("Editor snapshot", "[.snapshot]")
     processor.prepareToPlay (sampleRate, 512);
 
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    const auto snapshotWidth = juce::SystemStats::getEnvironmentVariable ("ZEROONE_SNAPSHOT_WIDTH", "980").getIntValue();
+    const auto snapshotHeight = juce::SystemStats::getEnvironmentVariable ("ZEROONE_SNAPSHOT_HEIGHT", "660").getIntValue();
+    editor->setSize (snapshotWidth, snapshotHeight);
     Spectrogram* spectrogram = nullptr;
     MessagePreview* preview = nullptr;
 
@@ -306,6 +309,12 @@ TEST_CASE ("Editor snapshot", "[.snapshot]")
 
     REQUIRE (spectrogram != nullptr);
     REQUIRE (preview != nullptr);
+
+    if (juce::SystemStats::getEnvironmentVariable ("ZEROONE_SNAPSHOT_MODE", "") == "capture")
+        for (auto* child : editor->getChildren())
+            if (auto* button = dynamic_cast<juce::TextButton*> (child))
+                if (button->getButtonText() == "Capture" && button->onClick)
+                    button->onClick();
 
     // A slow pad (a minor chord with a little movement) under the message, for about 9 seconds.
     juce::AudioBuffer<float> buffer (2, 512);
@@ -334,8 +343,9 @@ TEST_CASE ("Editor snapshot", "[.snapshot]")
         spectrogram->update();
     }
 
-    spectrogram->setBand (11000.0f, 16000.0f);
     preview->setPosition (processor.displayPosition.load());
+    juce::Thread::sleep (40);
+    juce::Timer::callPendingTimersSynchronously();
 
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 2.0f);
     const auto path = juce::SystemStats::getEnvironmentVariable ("ZEROONE_SNAPSHOT", "/tmp/zeroone.png");

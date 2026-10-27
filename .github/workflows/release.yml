@@ -27,12 +27,12 @@ jobs:
       - name: Package
         run: |
           cd build/ZeroOne_artefacts/Release
-          ditto -c -k --keepParent AU/01.component "$GITHUB_WORKSPACE/01-macOS-AU.zip"
-          ditto -c -k --keepParent VST3/01.vst3 "$GITHUB_WORKSPACE/01-macOS-VST3.zip"
+          ditto -c -k --keepParent AU/01.component "$GITHUB_WORKSPACE/Inscript-macOS-AU.zip"
+          ditto -c -k --keepParent VST3/01.vst3 "$GITHUB_WORKSPACE/Inscript-macOS-VST3.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: 01-*.zip
+          path: Inscript-*.zip
 
   windows:
     runs-on: windows-latest
@@ -48,11 +48,11 @@ jobs:
           cmake --build build --config Release --parallel
       - name: Package
         shell: pwsh
-        run: Compress-Archive -Path build/ZeroOne_artefacts/Release/VST3/01.vst3 -DestinationPath "01-Windows-VST3.zip"
+        run: Compress-Archive -Path build/ZeroOne_artefacts/Release/VST3/01.vst3 -DestinationPath "Inscript-Windows-VST3.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: 01-*.zip
+          path: Inscript-*.zip
 
   release:
     needs: [macos, windows]
@@ -64,4 +64,4 @@ jobs:
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" 01-*.zip --repo "$GITHUB_REPOSITORY" --draft --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" Inscript-*.zip --repo "$GITHUB_REPOSITORY" --draft --generate-notes
