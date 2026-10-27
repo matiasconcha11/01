@@ -1,4 +1,5 @@
 #include "Message.h"
+#include <BinaryData.h>
 
 namespace
 {
@@ -32,7 +33,11 @@ Message Message::fromText (const juce::String& text)
 
     const auto margin = rows / 3;
     // Keep the complete line inside the stored image, including long messages.
-    auto font = juce::Font (juce::FontOptions ((float) rows * 1.15f, juce::Font::bold));
+    static const auto typeface = juce::Typeface::createSystemTypefaceFor (
+        BinaryData::SoraSemiBold_ttf, BinaryData::SoraSemiBold_ttfSize);
+    auto font = juce::Font (juce::FontOptions().withTypeface (typeface)
+                                               .withHeight ((float) rows * 0.90f))
+                    .withExtraKerningFactor (0.035f);
     auto textWidth = juce::GlyphArrangement::getStringWidth (font, trimmed);
     const auto availableWidth = (float) (maxColumns - 2 * margin);
 

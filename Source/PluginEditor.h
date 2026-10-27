@@ -15,10 +15,13 @@ public:
     void refresh();
     void setPosition (float);
     void paint (juce::Graphics&) override;
+    void resized() override;
 
 private:
+    void updateScaledPicture();
     ZeroOneProcessor& processor;
     juce::Image picture;
+    juce::Image scaledPicture;
     float position = -1.0f;
 };
 

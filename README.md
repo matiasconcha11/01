@@ -24,6 +24,8 @@ AU · VST3 · Standalone — macOS (Windows VST3 builds in CI) — by [Rhizr](ht
   type precise frequencies into the Low and High fields
 - **Timing preview** shows the message, playhead, length and space per character; Capture mode enlarges the visual
   for recording a reel
+- **Sora SemiBold lettering** is built into the plugin, so messages render consistently across hosts and systems.
+  New instances start at eight bars for readable letter proportions; existing projects keep their saved timing
 - **Output sample peak** warns if the processed signal exceeds 0 dBFS; Inscript does not limit or attenuate the mix
 - **Solo** to hear only the message; click-free bypass; the message (text or image) is saved with your session
 
@@ -39,7 +41,7 @@ hard to see when the whole 0–24 kHz spectrum shares one colour scale.
 
 Leave headroom before Inscript, especially on a limited mix. It adds tones to the incoming audio and does not limit
 the result. Place it before the final limiter or lower the input enough that the finished export stays below
-full scale. On a dense Something New excerpt, the title was hard to read over the default two bars. Spreading
+full scale. On a dense Something New excerpt, the title was hard to read over two bars. Spreading
 it over eight bars made both 11–16 kHz and 16–19 kHz readable in local 256 kbps AAC tests when the display
 was zoomed to the message band. Check the timing, band and level against your own track.
 

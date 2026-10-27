@@ -50,6 +50,7 @@ void MessagePreview::refresh()
     if (message == nullptr || message->isEmpty())
     {
         picture = {};
+        scaledPicture = {};
         repaint();
         return;
     }
@@ -60,7 +61,28 @@ void MessagePreview::refresh()
         for (int column = 0; column < message->columns; ++column)
             picture.setPixelAt (column, row, Spectrogram::colourFor (0.15f + 0.85f * message->at (row, column)));
 
+    updateScaledPicture();
     repaint();
+}
+
+void MessagePreview::resized()
+{
+    updateScaledPicture();
+}
+
+void MessagePreview::updateScaledPicture()
+{
+    const auto area = getLocalBounds().reduced (8, 6);
+    scaledPicture = {};
+
+    if (picture.isValid() && ! area.isEmpty())
+    {
+        const auto scale = juce::jmin ((float) area.getWidth() / (float) picture.getWidth(),
+                                      (float) area.getHeight() / (float) picture.getHeight());
+        scaledPicture = picture.rescaled (juce::jmax (1, juce::roundToInt ((float) picture.getWidth() * scale)),
+                                          juce::jmax (1, juce::roundToInt ((float) picture.getHeight() * scale)),
+                                          juce::Graphics::highResamplingQuality);
+    }
 }
 
 void MessagePreview::setPosition (float newPosition)
@@ -74,7 +96,7 @@ void MessagePreview::setPosition (float newPosition)
 
 void MessagePreview::paint (juce::Graphics& g)
 {
-    g.fillAll (Theme::panel);
+    g.fillAll (picture.isValid() ? Spectrogram::colourFor (0.15f) : Theme::panel);
     const auto area = getLocalBounds().toFloat().reduced (8.0f, 6.0f);
 
     if (! picture.isValid())
@@ -85,17 +107,22 @@ void MessagePreview::paint (juce::Graphics& g)
         return;
     }
 
-    // Stretched to the width, the way it stretches over the bars it plays across.
-    g.setImageResamplingQuality (juce::Graphics::lowResamplingQuality);
-    g.drawImage (picture, area, juce::RectanglePlacement::stretchToFit);
+    if (! scaledPicture.isValid())
+        return;
+
+    // Preserve letter proportions. The playhead follows the image's own timeline.
+    const auto imageArea = juce::Rectangle<float> ((float) scaledPicture.getWidth(),
+                                                    (float) scaledPicture.getHeight())
+                               .withCentre (area.getCentre());
+    g.drawImageAt (scaledPicture, juce::roundToInt (imageArea.getX()), juce::roundToInt (imageArea.getY()));
 
     if (position >= 0.0f)
     {
-        const auto x = area.getX() + position * area.getWidth();
+        const auto x = imageArea.getX() + position * imageArea.getWidth();
         g.setColour (Theme::text.withAlpha (0.12f));
-        g.fillRect (juce::Rectangle<float> (area.getX(), area.getY(), x - area.getX(), area.getHeight()));
+        g.fillRect (juce::Rectangle<float> (imageArea.getX(), imageArea.getY(), x - imageArea.getX(), imageArea.getHeight()));
         g.setColour (Theme::text);
-        g.drawLine (x, area.getY() - 2.0f, x, area.getBottom() + 2.0f, 1.5f);
+        g.drawLine (x, imageArea.getY() - 2.0f, x, imageArea.getBottom() + 2.0f, 1.5f);
     }
 }
 

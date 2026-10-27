@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 # -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" for a universal binary.
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 
-project(ZeroOne VERSION 0.2.0)
+project(ZeroOne VERSION 0.2.1)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +16,9 @@ FetchContent_Declare(
     GIT_TAG        9.0.4
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(JUCE)
+
+# Embed the message typeface so the spectrum looks the same in every host and OS.
+juce_add_binary_data(InscriptFonts SOURCES Resources/Sora-SemiBold.ttf)
 
 juce_add_plugin(ZeroOne
     COMPANY_NAME "Rhizr"
@@ -54,6 +57,7 @@ target_compile_definitions(ZeroOne PUBLIC
 
 target_link_libraries(ZeroOne
     PRIVATE
+        InscriptFonts
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC
@@ -77,6 +81,7 @@ if(ZEROONE_BUILD_TESTS)
         Tests/ZeroOneTests.cpp)
 
     target_link_libraries(ZeroOneTests PRIVATE
+        InscriptFonts
         juce::juce_audio_utils
         juce::juce_dsp
         juce::juce_recommended_config_flags

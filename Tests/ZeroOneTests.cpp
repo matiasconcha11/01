@@ -240,12 +240,12 @@ TEST_CASE ("Processor: writes the message while playing, from the start bar")
         return buffer.getMagnitude (0, 0, 4800);
     };
 
-    // Default: start bar 1, 2 bars long. The middle of the message is the letter.
-    CHECK (energyAt (3.8) > 0.001f);
-    // After the message (2 bars) comes a 2-bar gap: the first block still has the 2 ms fade-out, then silence.
-    energyAt (9.0);
-    CHECK (energyAt (9.2) == 0.0f);
-    CHECK (energyAt (19.8) > 0.001f);   // the middle of the repeat
+    // Default: start bar 1, 8 bars long. The middle of the message is the letter.
+    CHECK (energyAt (15.8) > 0.001f);
+    // After the message comes a 2-bar gap: the first block still has the 2 ms fade-out, then silence.
+    energyAt (33.0);
+    CHECK (energyAt (33.2) == 0.0f);
+    CHECK (energyAt (55.8) > 0.001f);   // the middle of the repeat
 
     processor.setPlayHead (nullptr);
 }
@@ -316,13 +316,13 @@ TEST_CASE ("Editor snapshot", "[.snapshot]")
                 if (button->getButtonText() == "Capture" && button->onClick)
                     button->onClick();
 
-    // A slow pad (a minor chord with a little movement) under the message, for about 9 seconds.
+    // A slow pad (a minor chord with a little movement) under a full 8-bar message.
     juce::AudioBuffer<float> buffer (2, 512);
     juce::MidiBuffer midi;
     const float chord[] { 110.0f, 220.0f, 261.63f, 329.63f, 440.0f, 523.25f, 659.25f, 987.77f };
     juce::Random random (7);
 
-    for (int block = 0; block < 860; ++block)
+    for (int block = 0; block < 1600; ++block)
     {
         for (int i = 0; i < 512; ++i)
         {

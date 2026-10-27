@@ -27,8 +27,13 @@ jobs:
       - name: Package
         run: |
           cd build/ZeroOne_artefacts/Release
-          ditto -c -k --keepParent AU/01.component "$GITHUB_WORKSPACE/Inscript-macOS-AU.zip"
-          ditto -c -k --keepParent VST3/01.vst3 "$GITHUB_WORKSPACE/Inscript-macOS-VST3.zip"
+          mkdir -p package-au package-vst3
+          cp "$GITHUB_WORKSPACE/LICENSE" "$GITHUB_WORKSPACE/Resources/OFL-Sora.txt" package-au/
+          cp "$GITHUB_WORKSPACE/LICENSE" "$GITHUB_WORKSPACE/Resources/OFL-Sora.txt" package-vst3/
+          ditto AU/01.component package-au/01.component
+          ditto VST3/01.vst3 package-vst3/01.vst3
+          ditto -c -k package-au "$GITHUB_WORKSPACE/Inscript-macOS-AU.zip"
+          ditto -c -k package-vst3 "$GITHUB_WORKSPACE/Inscript-macOS-VST3.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -48,7 +53,11 @@ jobs:
           cmake --build build --config Release --parallel
       - name: Package
         shell: pwsh
-        run: Compress-Archive -Path build/ZeroOne_artefacts/Release/VST3/01.vst3 -DestinationPath "Inscript-Windows-VST3.zip"
+        run: |
+          New-Item -ItemType Directory -Path package | Out-Null
+          Copy-Item -Recurse build/ZeroOne_artefacts/Release/VST3/01.vst3 package/01.vst3
+          Copy-Item LICENSE,Resources/OFL-Sora.txt package/
+          Compress-Archive -Path package/* -DestinationPath "Inscript-Windows-VST3.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows

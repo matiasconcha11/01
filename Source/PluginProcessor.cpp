@@ -55,7 +55,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout ZeroOneProcessor::createLayo
                                                        16000.0f, hz));
     layout.add (std::make_unique<AudioParameterInt> (ParameterID { Params::start, 1 }, "Start Bar", 1, 512, 1));
     layout.add (std::make_unique<AudioParameterChoice> (ParameterID { Params::length, 1 }, "Length",
-                                                        Params::lengthNames(), 1));
+                                                        Params::lengthNames(), 3));
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { Params::repeat, 1 }, "Repeat", true));
     layout.add (std::make_unique<AudioParameterChoice> (ParameterID { Params::gap, 1 }, "Gap",
                                                         Params::gapNames(), 2));
