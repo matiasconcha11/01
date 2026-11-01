@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <BinaryData.h>
 
 namespace Theme
 {
@@ -35,6 +36,13 @@ namespace Theme
     {
         return juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), height,
                                              juce::Font::plain));
+    }
+
+    inline juce::Font display (float height)
+    {
+        static const auto face = juce::Typeface::createSystemTypefaceFor (
+            BinaryData::SoraSemiBold_ttf, BinaryData::SoraSemiBold_ttfSize);
+        return juce::Font (juce::FontOptions().withTypeface (face).withHeight (height));
     }
 
     inline juce::Font serif (float height)

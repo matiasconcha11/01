@@ -153,7 +153,7 @@ ZeroOneEditor::ZeroOneEditor (ZeroOneProcessor& p)
 {
     setLookAndFeel (&lookAndFeel);
 
-    messageBox.setFont (Theme::font (17.0f, true));
+    messageBox.setFont (Theme::display (17.0f));
     messageBox.setJustification (juce::Justification::centredLeft);
     messageBox.setIndents (10, 0);
     messageBox.setTextToShowWhenEmpty ("Your message", Theme::faint);
@@ -406,7 +406,7 @@ void ZeroOneEditor::paint (juce::Graphics& g)
     g.setColour (Theme::honey);
     g.drawText ("01 / SPECTRAL INSCRIPTION", margin, 9, 260, 14, juce::Justification::centredLeft);
     g.setColour (Theme::text);
-    g.setFont (Theme::font (31.0f, true));
+    g.setFont (Theme::display (31.0f));
     g.drawText ("INSCRIPT", margin - 1, 25, 200, 43, juce::Justification::centredLeft);
     if (getWidth() >= 900)
     {
