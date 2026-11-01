@@ -31,6 +31,12 @@ namespace Theme
         return font (height, true).withExtraKerningFactor (0.12f);
     }
 
+    inline juce::Font mono (float height)
+    {
+        return juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), height,
+                                             juce::Font::plain));
+    }
+
     inline juce::Font serif (float height)
     {
         return juce::Font (juce::FontOptions (juce::Font::getDefaultSerifFontName(), height, juce::Font::plain));

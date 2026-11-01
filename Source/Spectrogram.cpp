@@ -236,9 +236,10 @@ void Spectrogram::paint (juce::Graphics& g)
     g.setFont (Theme::font (11.0f));
     g.setColour (Theme::dim);
 
-    for (int tick = 0; tick <= 4; ++tick)
+    const auto tickCount = getHeight() < 180 ? 2 : 4;
+    for (int tick = 0; tick <= tickCount; ++tick)
     {
-        const auto hz = lowHz + span * (float) tick / 4.0f;
+        const auto hz = lowHz + span * (float) tick / (float) tickCount;
         const auto y = yFor (hz);
         const auto label = hz >= 1000.0f ? juce::String (hz / 1000.0f, 1) + "k" : juce::String (juce::roundToInt (hz));
         g.setColour (Theme::text.withAlpha (0.7f));

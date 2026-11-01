@@ -10,6 +10,8 @@ AU · VST3 · Standalone — macOS (Windows VST3 builds in CI) — by [Rhizr](ht
 
 [Capture layout](docs/capture.png)
 
+[Compact layout](docs/compact.png)
+
 ## Features
 
 - **Text or image**: type up to 64 characters, or drop a PNG/JPG on the window; bright parts sound, dark parts stay quiet
@@ -22,6 +24,8 @@ AU · VST3 · Standalone — macOS (Windows VST3 builds in CI) — by [Rhizr](ht
 - **Live spectrogram** zoomed to the message band by default, with full-range and mix/message views. The message
   view shows only the added tones; the mix view shows a mono fold of the processed output. Drag the band edges on the display or
   type precise frequencies into the Low and High fields
+- **Measured display**: the large spectrum is computed from the plugin's actual audio output; the smaller message map is
+  the expected letter pattern. Compact windows keep the spectrum readable, and Capture mode gives it more room
 - **Timing preview** shows the message, playhead, length and space per character; Capture mode enlarges the visual
   for recording a reel
 - **Sora SemiBold lettering** is built into the plugin, so messages render consistently across hosts and systems.

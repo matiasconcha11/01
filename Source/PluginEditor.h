@@ -76,7 +76,7 @@ private:
     std::unique_ptr<ComboBoxAttachment> gapAttachment;
     std::unique_ptr<ButtonAttachment> repeatAttachment, soloAttachment, bypassAttachment;
 
-    juce::Rectangle<int> controlsArea;
+    juce::Rectangle<int> messageArea, previewArea, spectrumArea, controlsArea;
     std::vector<std::pair<juce::Rectangle<int>, juce::String>> captions;
     std::shared_ptr<const Message> shownMessage;
     bool captureMode = false;

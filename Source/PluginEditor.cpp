@@ -2,9 +2,25 @@
 
 namespace
 {
-    constexpr int margin = 16;
-    constexpr int headerHeight = 66;
-    constexpr int controlsHeight = 138;
+    constexpr int margin = 18;
+    constexpr int headerHeight = 76;
+    constexpr int controlsHeight = 144;
+
+    void drawPanel (juce::Graphics& g, juce::Rectangle<int> bounds, bool active)
+    {
+        if (bounds.isEmpty()) return;
+        auto r = bounds.toFloat();
+        g.setColour (Theme::panel);
+        g.fillRoundedRectangle (r, 8.0f);
+        g.setColour (Theme::outline);
+        g.drawRoundedRectangle (r.reduced (0.5f), 8.0f, 1.0f);
+        if (active)
+        {
+            g.setColour (Theme::honey.withAlpha (0.78f));
+            g.fillRect (r.getX() + 12.0f, r.getY(), 32.0f, 2.0f);
+            g.fillRect (r.getRight() - 44.0f, r.getBottom() - 2.0f, 32.0f, 2.0f);
+        }
+    }
 
     struct BandPreset
     {
@@ -137,7 +153,7 @@ ZeroOneEditor::ZeroOneEditor (ZeroOneProcessor& p)
 {
     setLookAndFeel (&lookAndFeel);
 
-    messageBox.setFont (Theme::font (17.0f));
+    messageBox.setFont (Theme::font (17.0f, true));
     messageBox.setJustification (juce::Justification::centredLeft);
     messageBox.setIndents (10, 0);
     messageBox.setTextToShowWhenEmpty ("Your message", Theme::faint);
@@ -234,7 +250,7 @@ ZeroOneEditor::ZeroOneEditor (ZeroOneProcessor& p)
         label->setColour (juce::Label::textColourId, Theme::dim);
         addAndMakeVisible (label);
     }
-    scaleInfo.setFont (Theme::caps (10.0f));
+    scaleInfo.setFont (Theme::mono (10.0f));
     scaleInfo.setJustificationType (juce::Justification::centredRight);
     scaleInfo.setText ("MIX (MONO)  /  -100 TO -40 dBFS", juce::dontSendNotification);
 
@@ -385,33 +401,54 @@ void ZeroOneEditor::paint (juce::Graphics& g)
 {
     g.fillAll (Theme::background);
 
-    auto header = getLocalBounds().reduced (margin, 0).removeFromTop (headerHeight);
+    // Typography and restrained instrument markings frame the actual output, rather than a mock signal.
+    g.setFont (Theme::mono (10.0f));
     g.setColour (Theme::honey);
-    g.setFont (Theme::serif (38.0f));
-    g.drawText ("Inscript", header.removeFromLeft (188), juce::Justification::centredLeft);
+    g.drawText ("01 / SPECTRAL INSCRIPTION", margin, 9, 260, 14, juce::Justification::centredLeft);
+    g.setColour (Theme::text);
+    g.setFont (Theme::font (31.0f, true));
+    g.drawText ("INSCRIPT", margin - 1, 25, 200, 43, juce::Justification::centredLeft);
+    if (getWidth() >= 900)
+    {
+        g.setColour (Theme::dim);
+        g.setFont (Theme::mono (11.0f));
+        g.drawText ("WRITE INTO THE SPECTRUM", margin + 174, 42, 220, 16, juce::Justification::centredLeft);
+    }
 
+    if (! captureMode) drawPanel (g, messageArea, false);
+    drawPanel (g, previewArea, false);
+    drawPanel (g, spectrumArea, true);
+    if (! captureMode) drawPanel (g, controlsArea, false);
+
+    const auto section = [&] (juce::Rectangle<int> area, const juce::String& title, const juce::String& index)
+    {
+        if (area.isEmpty()) return;
+        g.setColour (Theme::honey);
+        g.setFont (Theme::mono (10.0f));
+        g.drawText (index, area.getX() + 12, area.getY() + 7, 30, 16, juce::Justification::centredLeft);
+        g.setColour (Theme::text);
+        g.drawText (title, area.getX() + 42, area.getY() + 7,
+                    area.getWidth() - 54, 16, juce::Justification::centredLeft);
+    };
+    if (! captureMode) section (messageArea, "SOURCE / TEXT OR IMAGE", "01");
+    section (previewArea, "MESSAGE MAP / EXPECTED PATTERN", "02");
+    section (spectrumArea, "LIVE SIGNAL / MEASURED OUTPUT", "03");
+    if (! captureMode) section (controlsArea, "TRANSMISSION CONTROL", "04");
+
+    g.setFont (Theme::mono (10.0f));
     g.setColour (Theme::dim);
-    g.setFont (Theme::font (13.0f));
-    g.drawText ("write into the spectrum", header.removeFromLeft (220).withTrimmedTop (8),
-                juce::Justification::centredLeft);
-
-    g.setFont (Theme::caps (11.0f));
-    g.setColour (Theme::dim);
-
-    for (const auto& [area, text] : captions)
-        g.drawText (text, area, juce::Justification::centredLeft);
-
-    g.setColour (Theme::outline);
-    if (! captureMode)
-        g.drawHorizontalLine (controlsArea.getY() - 8, (float) margin, (float) (getWidth() - margin));
+    for (const auto& [area, caption] : captions)
+        g.drawText (caption, area, juce::Justification::centredLeft);
 }
 
 void ZeroOneEditor::resized()
 {
     captions.clear();
+    messageArea = previewArea = spectrumArea = controlsArea = {};
+    const auto compact = getHeight() < 620;
     auto bounds = getLocalBounds().reduced (margin, 0);
 
-    auto header = bounds.removeFromTop (headerHeight);
+    auto header = bounds.removeFromTop (compact ? 68 : headerHeight);
     captureButton.setBounds (header.removeFromRight (86).withSizeKeepingCentre (86, 30));
     header.removeFromRight (8);
     bypassButton.setBounds (header.removeFromRight (80).withSizeKeepingCentre (80, 30));
@@ -420,46 +457,60 @@ void ZeroOneEditor::resized()
 
     if (captureMode)
     {
-        bounds.removeFromTop (4);
-        timingInfo.setBounds (bounds.removeFromTop (24));
-        bounds.removeFromTop (8);
-        preview.setBounds (bounds.removeFromTop (108));
-        bounds.removeFromTop (12);
-        auto toolbar = bounds.removeFromTop (34);
+        previewArea = bounds.removeFromTop (132);
+        auto map = previewArea.reduced (12, 8);
+        map.removeFromTop (22);
+        timingInfo.setBounds (map.removeFromTop (20));
+        preview.setBounds (map);
+        bounds.removeFromTop (10);
+        spectrumArea = bounds.withTrimmedBottom (margin);
+        auto signal = spectrumArea.reduced (12, 8);
+        auto toolbar = signal.removeFromTop (31);
+        toolbar.removeFromLeft (228);
         zoomButton.setBounds (toolbar.removeFromRight (108));
         toolbar.removeFromRight (8);
         viewButton.setBounds (toolbar.removeFromRight (100));
-        peakInfo.setBounds (toolbar.removeFromLeft (220));
-        scaleInfo.setBounds (toolbar);
-        bounds.removeFromTop (6);
-        spectrogram.setBounds (bounds.withTrimmedBottom (margin));
+        auto metrics = signal.removeFromTop (20);
+        peakInfo.setBounds (metrics.removeFromLeft (220));
+        scaleInfo.setBounds (metrics);
+        signal.removeFromTop (4);
+        spectrogram.setBounds (signal);
         return;
     }
 
-    auto messageRow = bounds.removeFromTop (38);
+    messageArea = bounds.removeFromTop (compact ? 70 : 78);
+    auto messageRow = messageArea.reduced (12, compact ? 6 : 8);
+    messageRow.removeFromTop (compact ? 21 : 25);
     imageButton.setBounds (messageRow.removeFromRight (96));
     messageRow.removeFromRight (8);
     messageBox.setBounds (messageRow);
     sourceLabel.setBounds (messageRow.reduced (10, 0).removeFromRight (260));
 
-    bounds.removeFromTop (8);
-    timingInfo.setBounds (bounds.removeFromTop (24));
-    preview.setBounds (bounds.removeFromTop (70));
-    bounds.removeFromTop (10);
+    bounds.removeFromTop (compact ? 6 : 10);
+    previewArea = bounds.removeFromTop (compact ? 80 : 108);
+    auto map = previewArea.reduced (12, compact ? 5 : 8);
+    map.removeFromTop (compact ? 20 : 22);
+    timingInfo.setBounds (map.removeFromTop (compact ? 14 : 18));
+    preview.setBounds (map);
+    bounds.removeFromTop (compact ? 6 : 10);
 
-    auto toolbar = bounds.removeFromTop (34);
+    controlsArea = bounds.removeFromBottom (compact ? 126 : controlsHeight).withTrimmedBottom (compact ? 8 : margin);
+    bounds.removeFromBottom (compact ? 6 : 10);
+    spectrumArea = bounds;
+    auto signal = spectrumArea.reduced (12, 8);
+    auto toolbar = signal.removeFromTop (30);
+    toolbar.removeFromLeft (228);
     zoomButton.setBounds (toolbar.removeFromRight (108));
     toolbar.removeFromRight (8);
     viewButton.setBounds (toolbar.removeFromRight (100));
-    peakInfo.setBounds (toolbar.removeFromLeft (220));
-    scaleInfo.setBounds (toolbar);
-    bounds.removeFromTop (6);
+    auto metrics = signal.removeFromTop (20);
+    peakInfo.setBounds (metrics.removeFromLeft (220));
+    scaleInfo.setBounds (metrics);
+    signal.removeFromTop (4);
+    spectrogram.setBounds (signal);
 
-    controlsArea = bounds.removeFromBottom (controlsHeight).withTrimmedBottom (12);
-    bounds.removeFromBottom (12);
-    spectrogram.setBounds (bounds);
-
-    auto controls = controlsArea;
+    auto controls = controlsArea.reduced (12, 8);
+    controls.removeFromTop (24);
     const auto addCaption = [this] (juce::Rectangle<int>& column, const juce::String& text)
     {
         captions.push_back ({ column.removeFromTop (16), text });
