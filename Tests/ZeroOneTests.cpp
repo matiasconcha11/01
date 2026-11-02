@@ -23,6 +23,16 @@ TEST_CASE ("Published parameter IDs and AU version hints stay stable", "[compati
         CHECK (parameter->getParameterID() == expected[i]);
         CHECK (parameter->getVersionHint() == 1);
     }
+
+    const auto choices = [&] (const juce::String& id)
+    {
+        auto* parameter = dynamic_cast<juce::AudioParameterChoice*> (processor.apvts.getParameter (id));
+        REQUIRE (parameter != nullptr);
+        return parameter->choices;
+    };
+    CHECK (choices ("length") == juce::StringArray { "1 bar", "2 bars", "4 bars", "8 bars", "16 bars" });
+    CHECK (choices ("gap") == juce::StringArray { "None", "1 bar", "2 bars", "4 bars", "8 bars", "16 bars" });
+    CHECK (choices ("play") == juce::StringArray { "Transport", "Free" });
 }
 
 namespace
