@@ -401,18 +401,31 @@ void ZeroOneEditor::paint (juce::Graphics& g)
 {
     g.fillAll (Theme::background);
 
+    juce::Path mark;
+    mark.startNewSubPath (32.0f, 53.0f);
+    mark.lineTo (32.0f, 14.0f);
+    mark.startNewSubPath (32.0f, 20.0f);
+    mark.lineTo (45.0f, 20.0f);
+    mark.startNewSubPath (32.0f, 30.0f);
+    mark.lineTo (49.0f, 30.0f);
+    mark.startNewSubPath (32.0f, 40.0f);
+    mark.lineTo (42.0f, 40.0f);
+    mark.applyTransform (juce::AffineTransform::scale (0.46f).translated ((float) margin - 2.0f, 30.0f));
+    g.setColour (Theme::honey);
+    g.strokePath (mark, juce::PathStrokeType (2.3f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
     // Typography and restrained instrument markings frame the actual output, rather than a mock signal.
     g.setFont (Theme::mono (10.0f));
     g.setColour (Theme::honey);
     g.drawText ("01 / SPECTRAL INSCRIPTION", margin, 9, 260, 14, juce::Justification::centredLeft);
     g.setColour (Theme::text);
     g.setFont (Theme::display (31.0f));
-    g.drawText ("INSCRIPT", margin - 1, 25, 200, 43, juce::Justification::centredLeft);
+    g.drawText ("INSCRIPT", margin + 31, 25, 200, 43, juce::Justification::centredLeft);
     if (getWidth() >= 900)
     {
         g.setColour (Theme::dim);
         g.setFont (Theme::mono (11.0f));
-        g.drawText ("WRITE INTO THE SPECTRUM", margin + 174, 42, 220, 16, juce::Justification::centredLeft);
+        g.drawText ("WRITE INTO THE SPECTRUM", margin + 210, 42, 220, 16, juce::Justification::centredLeft);
     }
 
     if (! captureMode) drawPanel (g, messageArea, false);
