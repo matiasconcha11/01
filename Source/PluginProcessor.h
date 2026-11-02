@@ -59,11 +59,10 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    // Message thread only.
     void setMessageText (const juce::String& text);
     void setMessageImage (const juce::Image& image, const juce::String& name);
-    juce::String getMessageText() const { return messageText; }
-    juce::String getImageName() const { return imageName; }
+    juce::String getMessageText() const { const juce::ScopedLock lock (contentLock); return messageText; }
+    juce::String getImageName() const { const juce::ScopedLock lock (contentLock); return imageName; }
     std::shared_ptr<const Message> getMessage() const;
 
     juce::AudioProcessorValueTreeState apvts;
@@ -95,14 +94,14 @@ private:
     std::atomic<float>* soloParam = nullptr;
     std::atomic<float>* bypassParam = nullptr;
 
-    // The message thread swaps in new messages under the lock; the audio thread only ever tries it,
-    // and keeps playing the old one if it can't get it. Old messages are freed on the message thread
-    // once the audio thread has let go of them, never on the audio thread.
-    juce::SpinLock messageLock;
+    // UI or host threads publish under the lock; the audio thread only tries it and keeps the
+    // old message if busy. Retired messages are freed outside the audio thread.
+    mutable juce::SpinLock messageLock;
     std::shared_ptr<const Message> latestMessage;
     std::shared_ptr<const Message> audioMessage;
     std::vector<std::shared_ptr<const Message>> retired;
 
+    mutable juce::CriticalSection contentLock;
     juce::String messageText { "01" };
     juce::String imageName;   // empty when the message is text
     juce::MemoryBlock imageMessage;

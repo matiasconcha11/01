@@ -6,8 +6,24 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "Schedule.h"
+#include <thread>
 
 using Catch::Matchers::WithinAbs;
+
+TEST_CASE ("Published parameter IDs and AU version hints stay stable", "[compatibility]")
+{
+    ZeroOneProcessor processor;
+    const juce::StringArray expected { "level", "low", "high", "start", "length", "repeat", "gap", "play", "solo", "bypass" };
+    REQUIRE (processor.getParameters().size() == expected.size());
+
+    for (int i = 0; i < expected.size(); ++i)
+    {
+        auto* parameter = dynamic_cast<juce::AudioProcessorParameterWithID*> (processor.getParameters()[i]);
+        REQUIRE (parameter != nullptr);
+        CHECK (parameter->getParameterID() == expected[i]);
+        CHECK (parameter->getVersionHint() == 1);
+    }
+}
 
 namespace
 {
@@ -279,6 +295,24 @@ TEST_CASE ("Processor: state brings back the parameters and the message")
     REQUIRE (withImage.getMessage()->columns == 96);
     CHECK (withImage.getMessage()->at (10, 10) > 0.9f);
     CHECK (withImage.getMessage()->at (10, 80) < 0.05f);
+}
+
+TEST_CASE ("Host-thread restore makes an image message available immediately", "[state]")
+{
+    ZeroOneProcessor source;
+    juce::Image image (juce::Image::RGB, 64, 32, true);
+    image.clear ({ 0, 0, 32, 32 }, juce::Colours::white);
+    source.setMessageImage (image, "message.png");
+    juce::MemoryBlock saved;
+    source.getStateInformation (saved);
+
+    ZeroOneProcessor restored;
+    std::thread host ([&] { restored.setStateInformation (saved.getData(), (int) saved.getSize()); });
+    host.join();
+
+    CHECK (restored.getImageName() == "message.png");
+    REQUIRE (restored.getMessage() != nullptr);
+    CHECK (restored.getMessage()->columns == source.getMessage()->columns);
 }
 
 // Not part of the normal run: renders the editor to a PNG.  ./build/ZeroOneTests "[.snapshot]"

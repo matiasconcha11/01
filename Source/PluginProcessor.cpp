@@ -218,10 +218,12 @@ void ZeroOneProcessor::publish (std::shared_ptr<const Message> message)
 
 void ZeroOneProcessor::setMessageText (const juce::String& text)
 {
+    auto message = std::make_shared<const Message> (Message::fromText (text));
+    const juce::ScopedLock lock (contentLock);
     messageText = text;
     imageName = {};
     imageMessage.reset();
-    publish (std::make_shared<const Message> (Message::fromText (text)));
+    publish (std::move (message));
 }
 
 void ZeroOneProcessor::setMessageImage (const juce::Image& image, const juce::String& name)
@@ -231,26 +233,33 @@ void ZeroOneProcessor::setMessageImage (const juce::Image& image, const juce::St
     if (message.isEmpty())
         return;
 
+    auto bytes = message.toMemory();
+    const juce::ScopedLock lock (contentLock);
     imageName = name.isNotEmpty() ? name : juce::String ("image");
-    imageMessage = message.toMemory();
+    imageMessage = std::move (bytes);
     publish (std::make_shared<const Message> (std::move (message)));
 }
 
 std::shared_ptr<const Message> ZeroOneProcessor::getMessage() const
 {
+    const juce::SpinLock::ScopedLockType lock (messageLock);
     return latestMessage;
 }
 
 void ZeroOneProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
-    state.setProperty ("text", messageText, nullptr);
-    state.setProperty ("imageName", imageName, nullptr);
+    state.setProperty ("schemaVersion", 1, nullptr);
+    {
+        const juce::ScopedLock lock (contentLock);
+        state.setProperty ("text", messageText, nullptr);
+        state.setProperty ("imageName", imageName, nullptr);
 
-    if (imageName.isNotEmpty())
-        state.setProperty ("image", imageMessage.toBase64Encoding(), nullptr);
-    else
-        state.removeProperty ("image", nullptr);
+        if (imageName.isNotEmpty())
+            state.setProperty ("image", imageMessage.toBase64Encoding(), nullptr);
+        else
+            state.removeProperty ("image", nullptr);
+    }
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -274,6 +283,7 @@ void ZeroOneProcessor::setStateInformation (const void* data, int sizeInBytes)
     state.removeProperty ("text", nullptr);
     state.removeProperty ("imageName", nullptr);
     state.removeProperty ("image", nullptr);
+    state.removeProperty ("schemaVersion", nullptr);
     apvts.replaceState (state);
 
     auto restored = name.isNotEmpty() ? Message::fromMemory (image) : Message();
@@ -284,10 +294,13 @@ void ZeroOneProcessor::setStateInformation (const void* data, int sizeInBytes)
         return;
     }
 
-    messageText = text;
-    imageName = name;
-    imageMessage = image;
-    publish (std::make_shared<const Message> (std::move (restored)));
+    {
+        const juce::ScopedLock lock (contentLock);
+        messageText = text;
+        imageName = name;
+        imageMessage = image;
+        publish (std::make_shared<const Message> (std::move (restored)));
+    }
 }
 
 juce::AudioProcessorEditor* ZeroOneProcessor::createEditor()
